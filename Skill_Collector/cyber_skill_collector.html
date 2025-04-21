@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cyber Skill Collector</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: #0e0e0e;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #1a1a1a;
+      border: 2px solid #00ffcc;
+    }
+    #tooltip {
+      position: absolute;
+      color: #00ffcc;
+      background: rgba(0, 0, 0, 0.85);
+      border: 1px solid #00ffcc;
+      padding: 4px 8px;
+      border-radius: 4px;
+      display: none;
+      pointer-events: none;
+      font-size: 12px;
+    }
+    #muteButton {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      color: #00ffcc;
+      background: #111;
+      border: 1px solid #00ffcc;
+      border-radius: 4px;
+      padding: 4px 8px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    /* New styles for start button and rules overlay */
+    #startButton {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: #00ffcc;
+      color: #0e0e0e;
+      border: none;
+      border-radius: 8px;
+      padding: 16px 32px;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 0 10px #00ffcc;
+      z-index: 10;
+    }
+    #rulesOverlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: rgba(14, 14, 14, 0.95);
+      border: 2px solid #00ffcc;
+      border-radius: 12px;
+      padding: 24px 32px;
+      width: 320px;
+      color: #00ffcc;
+      font-size: 16px;
+      line-height: 1.4;
+      z-index: 20;
+      display: none;
+      text-align: center;
+      user-select: none;
+    }
+    #rulesOverlay h2 {
+      margin-top: 0;
+      font-size: 22px;
+      margin-bottom: 12px;
+    }
+    #rulesOverlay ul {
+      text-align: left;
+      padding-left: 20px;
+      margin-bottom: 12px;
+    }
+    #rulesOverlay .malware-icons {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    #rulesOverlay .malware-icons img {
+      width: 48px;
+      height: 48px;
+      filter: drop-shadow(0 0 2px #ff0000);
+    }
+    #countdownTimer {
+      font-size: 20px;
+      font-weight: bold;
+      margin-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="400" height="400"></canvas>
+  <div id="tooltip"></div>
+  <button id="muteButton">🔈 Mute</button>
+
+  <!-- New Start Game button -->
+  <button id="startButton">Start Game</button>
+
+  <!-- New Rules Overlay -->
+  <div id="rulesOverlay">
+    <h2>Game Rules</h2>
+    <p><strong>Objective:</strong> Collect as many cybersecurity skills as possible.</p>
+    <p><strong>Avoid</strong> malware icons — collecting them ends the game.</p>
+    <p>You can only move left and right using <strong>Arrow keys</strong> or <strong>A/D</strong> keys.</p>
+    <h3>🛡️ Skills to Collect:</h3>
+    <ul>
+      <li>Represented by tool icons (e.g., Wireshark, Nmap, Burp Suite, etc.).</li>
+      <li>These help increase your score.</li>
+    </ul>
+    <h3>☠️ Malware to Avoid:</h3>
+    <div class="malware-icons">
+      <img src="https://cdn.vectorstock.com/i/1000x1000/77/65/virus-infection-bug-icon-vector-12867765.webp" alt="Malware1" />
+      <img src="https://cdn3.iconfinder.com/data/icons/science-flat-round/512/bug_insect_ladybird_animal_virus_error_add-512.png" alt="Malware2" />
+    </div>
+    <div id="countdownTimer">Starting in 10...</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const tooltip = document.getElementById('tooltip');
+    const muteButton = document.getElementById('muteButton');
+    const startButton = document.getElementById('startButton');
+    const rulesOverlay = document.getElementById('rulesOverlay');
+    const countdownTimer = document.getElementById('countdownTimer');
+
+    let width = canvas.width;
+    let height = canvas.height;
+
+    let isMuted = false;
+    let infected = false; // Flag to track if player collected malware
+
+    // Updated skillIcons array to include image URLs and placeholders for Image objects
+    const skillIcons = [
+      { name: 'Wireshark', desc: 'Packet analysis tool.', color: '#00ffff', url: 'https://upload.wikimedia.org/wikipedia/commons/d/db/Wireshark_Icon.png', img: null },
+      { name: 'Nmap', desc: 'Network discovery scanner.', color: '#ffcc00', url: 'https://nmap.org/images/sitelogo-2x.png', img: null },
+      { name: 'Nessus', desc: 'Vulnerability assessment.', color: '#ff6699', url: 'http://www.linuxfocus.org/common/images/article217/illustration217.png', img: null },
+      { name: 'Splunk', desc: 'SIEM log analyzer.', color: '#ff9900', url: 'https://logos-world.net/wp-content/uploads/2022/11/Splunk-Logo-500x281.png', img: null },
+      { name: 'Burp Suite', desc: 'Web vulnerability scanner.', color: '#ff3300', url: 'https://cdn4.iconfinder.com/data/icons/macaron-1/48/BurpSuite-512.png', img: null },
+      { name: 'OWASP ZAP', desc: 'Web app security tester.', color: '#66ff66', url: 'https://www.lancork.net/wordpress/wp-content/uploads/2014/06/owasp-zap-logo.png', img: null },
+      { name: 'Snyk', desc: 'Open source vuln scanner.', color: '#9966ff', url: 'https://images.seeklogo.com/logo-png/29/1/snyk-logo-png_seeklogo-290110.png', img: null }
+    ];
+
+    // Updated malwareIcons array with only the two specified malware images
+    const malwareIcons = [
+      { name: 'Malware1', url: 'https://cdn.vectorstock.com/i/1000x1000/77/65/virus-infection-bug-icon-vector-12867765.webp', img: null },
+      { name: 'Malware2', url: 'https://cdn3.iconfinder.com/data/icons/science-flat-round/512/bug_insect_ladybird_animal_virus_error_add-512.png', img: null }
+    ];
+
+    // Load the firewall icon image for the player sprite
+    const playerImg = new Image();
+    playerImg.src = 'firewall-icon.png'; // Local file, should be in the same directory
+
+    const player = {
+      x: width / 2 - 20, // Adjusted for 40px width
+      y: height - 40,    // Adjusted for 40px height
+      width: 40,
+      height: 40,
+      speed: 5,
+      color: '#00ffcc'
+    };
+
+    let fallingSkills = [];
+    let keys = {};
+    // Mouse movement disabled, no mouseX or mousemove listener
+
+    let score = 0;
+    let missed = 0;
+    let gameOver = false;
+    let gameOverMessage = ''; // Custom game over message
+
+    // Game state flags
+    let gameStarted = false; // True after countdown ends and game loop starts
+    let countdown = 10; // Countdown seconds
+
+    document.addEventListener('keydown', (e) => {
+      if (gameStarted) {
+        keys[e.key.toLowerCase()] = true;
+      }
+    });
+    document.addEventListener('keyup', (e) => {
+      if (gameStarted) {
+        keys[e.key.toLowerCase()] = false;
+      }
+    });
+
+    muteButton.addEventListener('click', () => {
+      isMuted = !isMuted;
+      muteButton.textContent = isMuted ? '🔇 Unmute' : '🔈 Mute';
+    });
+
+    function playSound(frequency = 440) {
+      if (isMuted) return;
+      const context = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'square';
+      oscillator.frequency.value = frequency;
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.1);
+    }
+
+    // Preload all skill and malware images to ensure smooth gameplay, including player image
+    function preloadImages(callback) {
+      let totalImages = skillIcons.length + malwareIcons.length + 1; // +1 for playerImg
+      let loadedCount = 0;
+
+      function checkAllLoaded() {
+        loadedCount++;
+        if (loadedCount === totalImages) {
+          callback();
+        }
+      }
+
+      for (let skill of skillIcons) {
+        skill.img = new Image();
+        skill.img.src = skill.url;
+        skill.img.onload = checkAllLoaded;
+        skill.img.onerror = () => {
+          console.warn(`Failed to load image for ${skill.name} from ${skill.url}`);
+          checkAllLoaded();
+        };
+      }
+
+      for (let malware of malwareIcons) {
+        malware.img = new Image();
+        malware.img.src = malware.url;
+        malware.img.onload = checkAllLoaded;
+        malware.img.onerror = () => {
+          console.warn(`Failed to load malware image from ${malware.url}`);
+          checkAllLoaded();
+        };
+      }
+
+      // Preload player image
+      playerImg.onload = checkAllLoaded;
+      playerImg.onerror = () => {
+        console.warn('Failed to load player image firewall-icon.png');
+        checkAllLoaded();
+      };
+    }
+
+    // Spawn a random skill icon falling item
+    function spawnSkill() {
+      const icon = skillIcons[Math.floor(Math.random() * skillIcons.length)];
+      fallingSkills.push({
+        x: Math.random() * (width - 28), // Adjusted for image size
+        y: -28,
+        size: 28, // Updated size for image icons
+        speed: 2 + Math.random() * 2,
+        icon: icon,
+        isMalware: false // Flag to distinguish skill icons
+      });
+    }
+
+    // Spawn a random malware icon falling item
+    function spawnMalware() {
+      const icon = malwareIcons[Math.floor(Math.random() * malwareIcons.length)];
+      fallingSkills.push({
+        x: Math.random() * (width - 28),
+        y: -28,
+        size: 28,
+        speed: 2 + Math.random() * 2,
+        icon: icon,
+        isMalware: true // Flag to distinguish malware icons
+      });
+    }
+
+    function showTooltip(skill) {
+      tooltip.innerText = `${skill.name}: ${skill.desc || ''}`;
+      tooltip.style.left = (player.x + 10) + 'px';
+      tooltip.style.top = (player.y - 30) + 'px';
+      tooltip.style.display = 'block';
+      setTimeout(() => tooltip.style.display = 'none', 1000);
+    }
+
+    // Draw the player sprite as the firewall icon image
+    function drawPlayer() {
+      if (playerImg.complete) {
+        ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+      } else {
+        // Fallback: draw a rectangle if image not loaded
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+      }
+    }
+
+    // Draw all falling items (skills and malware)
+    function drawSkills() {
+      for (let s of fallingSkills) {
+        if (s.icon.img && s.icon.img.complete) {
+          ctx.drawImage(s.icon.img, s.x, s.y, s.size, s.size);
+        } else {
+          // Fallback: draw a red circle for malware, colored circle for skills
+          if (s.isMalware) {
+            ctx.fillStyle = '#ff0000';
+          } else {
+            ctx.fillStyle = s.icon.color;
+          }
+          ctx.beginPath();
+          ctx.arc(s.x + s.size / 2, s.y + s.size / 2, s.size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    function update() {
+      // Keyboard controls: ArrowLeft, ArrowRight, A, D keys
+      if (keys['arrowleft'] || keys['a']) player.x -= player.speed;
+      if (keys['arrowright'] || keys['d']) player.x += player.speed;
+
+      // Clamp player position within canvas bounds
+      player.x = Math.max(0, Math.min(width - player.width, player.x));
+
+      for (let i = fallingSkills.length - 1; i >= 0; i--) {
+        const s = fallingSkills[i];
+        s.y += s.speed;
+
+        // Collision detection with player
+        if (
+          s.y + s.size > player.y &&
+          s.x < player.x + player.width &&
+          s.x + s.size > player.x
+        ) {
+          if (s.isMalware) {
+            // Player collected malware - game over with infection message
+            infected = true;
+            gameOver = true;
+            gameOverMessage = 'Game Over - You Got Infected By Virus';
+            fallingSkills.splice(i, 1);
+            break; // Stop checking further collisions
+          } else {
+            playSound(800);
+            showTooltip(s.icon);
+            score++;
+            fallingSkills.splice(i, 1);
+          }
+        } else if (s.y > height) {
+          if (!s.isMalware) {
+            missed++;
+          }
+          fallingSkills.splice(i, 1);
+        }
+      }
+
+      // Existing game over condition for missed skills
+      if (missed > 5) {
+        gameOver = true;
+        if (!infected) {
+          gameOverMessage = '';
+        }
+      }
+    }
+
+    // Draw HUD with score and missed count
+    function drawHUD() {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '12px monospace';
+      ctx.fillText(`Skills Collected: ${score}`, 10, 20);
+      ctx.fillText(`Missed: ${missed}`, 10, 35);
+    }
+
+    // Updated drawGameOver to show custom message if infected
+    function drawGameOver() {
+      ctx.fillStyle = '#ff0033';
+      ctx.font = 'bold 18px monospace';
+      const message = infected ? gameOverMessage : 'Game Over';
+      ctx.fillText(message, width / 2 - ctx.measureText(message).width / 2, height / 2 - 10);
+      if (!infected) {
+        ctx.fillText(`Score: ${score}`, width / 2 - 45, height / 2 + 20);
+      }
+    }
+
+    // Variables to hold interval IDs for spawning
+    let skillIntervalId = null;
+    let malwareIntervalId = null;
+
+    // Function to start spawning intervals and game loop
+    function startGameLoop() {
+      skillIntervalId = setInterval(spawnSkill, 1000);
+      malwareIntervalId = setInterval(spawnMalware, 1500);
+      gameStarted = true;
+      loop();
+    }
+
+    // Function to stop spawning intervals (if needed)
+    function stopGameLoop() {
+      clearInterval(skillIntervalId);
+      clearInterval(malwareIntervalId);
+      gameStarted = false;
+    }
+
+    // Game loop function
+    function loop() {
+      ctx.clearRect(0, 0, width, height);
+      if (!gameOver) {
+        drawPlayer();
+        drawSkills();
+        drawHUD();
+        update();
+        requestAnimationFrame(loop);
+      } else {
+        drawGameOver();
+      }
+    }
+
+    // Preload images and then show start button (no auto start)
+    preloadImages(() => {
+      startButton.style.display = 'block';
+    });
+
+    // Start button click handler
+    startButton.addEventListener('click', () => {
+      startButton.style.display = 'none';
+      rulesOverlay.style.display = 'block';
+      countdown = 10;
+      countdownTimer.textContent = `Starting in ${countdown}...`;
+
+      // Countdown interval
+      const countdownInterval = setInterval(() => {
+        countdown--;
+        if (countdown > 0) {
+          countdownTimer.textContent = `Starting in ${countdown}...`;
+        } else {
+          clearInterval(countdownInterval);
+          rulesOverlay.style.display = 'none';
+          startGameLoop();
+        }
+      }, 1000);
+    });
+  </script>
+</body>
+</html>
